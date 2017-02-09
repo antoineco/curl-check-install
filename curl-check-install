@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -eo pipefail
 
 usage () {
@@ -102,7 +102,6 @@ rm -rf "$tmpdir"
 
 # uninstall cURL if we installed it earlier
 if [ -z "${curlPresent:-}" ]; then
-	apt-get purge -qq curl >/dev/null
-	apt-get autoremove -qq --purge >/dev/null
+	apt-get purge --auto-remove -qq curl >/dev/null
 	rm -rf /var/lib/apt/lists/*
 fi
