@@ -1,12 +1,12 @@
-#!/usr/bin/env bash
-set -eo pipefail
+#!/usr/bin/env sh
+set -e
 
 usage () {
 	cat <<-EOF
 		Usage: $(basename $0) -u url [-n filename] [-d dest] [-x] [-c checksum] [-p program]
 
 		Download, check and install a file from a URL using cURL.
-		cURL will be installed from package repositories if absent.
+		cURL will be installed from package repositories if absent, and removed after execution.
 
 		Options:
 		  -u	URL of the file
@@ -24,64 +24,101 @@ usage () {
 fileDest=/usr/local/bin
 checksumProgram=sha1sum
 
-# read flags
-while getopts :u:n:d:xc:p:h opt; do
-	case $opt in
-	u)
-		url="$OPTARG"
+# OS checks
+osName="$(awk -F'=' '$1 == "ID" { print $2 }' /etc/os-release)"
+case "$osName" in
+	debian|ubuntu)
+		packCmdPre="apt-get update -qq"
+		packCmdInst="apt-get install -qq --no-install-recommends"
+		packCmdDel="apt-get purge --auto-remove -qq"
+		packCmdClean="rm -rf /var/lib/apt/lists/*"
 		;;
-	n)
-		fileName="$OPTARG"
+	alpine)
+		packCmdPre=":"
+		packCmdInst="apk --no-cache add"
+		packCmdDel="apk del"
+		packCmdClean=":"
 		;;
-	d)
-		fileDest="$OPTARG"
-		;;
-	x)
-		makeExec=true
-		;;
-	c)
-		checksum="$OPTARG"
-		;;
-	p)
-		checksumProgram="$OPTARG"
-		;;
-	h)
-		usage
-		;;
-	\?)
-		echo "Invalid option: -$OPTARG" >&2
+	*)
+		echo "error: OS $osName unsupported" >&2
 		exit 1
 		;;
-	:)
-		echo "Option -$OPTARG requires an argument" >&2
+esac
+
+# read flags
+if ! O="$(getopt -- :u:n:d:xc:p:h "$@")"; then
+	echo "error: Wrong arguments" >&2
+	exit 1
+fi
+eval set -- "$O"
+while true; do
+	case "$1" in
+	-u)
+		url="$2"
+		shift 2
+		;;
+	-n)
+		fileName="$2"
+		shift 2
+		;;
+	-d)
+		fileDest="$2"
+		shift 2
+		;;
+	-x)
+		makeExec=true
+		shift
+		;;
+	-c)
+		checksum="$2"
+		shift 2
+		;;
+	-p)
+		checksumProgram="$2"
+		shift 2
+		;;
+	-h)
+		usage
+		;;
+	--)
+		shift
+		break
+		;;
+	*)
+		echo "error: Invalid option: $1" >&2
 		exit 1
 		;;
 	esac
 done
 
-shift $(($OPTIND - 1))
-
 if [ -z "${url:-}" ]; then
-	echo "Option -u is required" >&2
-	echo
-	usage
+	echo "error: Option -u is required" >&2
+	exit 1
 fi
 
 # install curl if required
-which curl &>/dev/null && curlPresent=true
+which curl 2>&1 >/dev/null && curlPresent=true
 if [ -z "${curlPresent:-}" ]; then
-	apt-get update -qq >/dev/null
-	apt-get install -qq --no-install-recommends curl >/dev/null
+	$packCmdPre >/dev/null
+	$packCmdInst curl >/dev/null
 fi
 
-# set program name if unset
+# install ca-certificates if required
+scheme=$(echo $url | awk -F ":" '{print $1}')
+which update-ca-certificates 2>&1 >/dev/null && caCertsPresent=true
+if [ "${scheme:-}" = "https" -a -z "${caCertsPresent:-}" ]; then
+	$packCmdPre >/dev/null
+	$packCmdInst ca-certificates >/dev/null
+fi
+
+# set file name if unset
 if [ -z "${fileName:-}" ]; then
 	fileName=$(echo $url | awk -F "/" '{print $NF}' | awk -F "?" '{print $1}')
 fi
 
 # create tmpdir to download file
 tmpdir=$(mktemp -d)
-pushd "$tmpdir" >/dev/null
+cd "$tmpdir"
 
 # fetch file passed as URL
 curl -fsSL "$url" -o "$fileName"
@@ -97,11 +134,17 @@ fi
 # install file to its final location and delete tmpdir
 mkdir -p "$fileDest"
 mv "$fileName" "$fileDest"
-popd >/dev/null
+cd - >/dev/null
 rm -rf "$tmpdir"
 
-# uninstall cURL if we installed it earlier
+# uninstall curl if we installed it earlier
 if [ -z "${curlPresent:-}" ]; then
-	apt-get purge --auto-remove -qq curl >/dev/null
-	rm -rf /var/lib/apt/lists/*
+	$packCmdDel curl >/dev/null
+	$packCmdClean
+fi
+
+# uninstall ca-certificates if we installed it earlier
+if [ -z "${caCertsPresent:-}" ]; then
+	$packCmdDel ca-certificates >/dev/null
+	$packCmdClean
 fi

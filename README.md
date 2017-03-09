@@ -10,7 +10,7 @@ I found myself repeating the same pattern in my Dockerfiles over and over again:
 
 So I made a dumb script to automate that, which I push to my usual base image.
 
-It currently works on Debian and its forks only, feel free to extend it for other distributions.
+It currently works on Debian and Alpine, feel free to extend it for other distributions.
 
 ## Usage
 
@@ -31,33 +31,43 @@ Options:
 
 Install the [tini](https://github.com/krallin/tini/) container init using a Dockerfile:
 
-````dockerfile
+```dockerfile
 FROM debian
 
-ENV TINI_VERSION 0.9.0
-ENV TINI_SHA1 fa23d1e20732501c3bb8eeeca423c89ac80ed452
+ENV TINI_VERSION 0.14.0
+ENV TINI_SHA1 b2d2b6d7f570158ae5eccbad9b98b5e9f040f853
 
-RUN curl-check-install \
-      -u https://github.com/krallin/tini/releases/download/v${TINI_VERSION}/tini-static \
-      -n tini \
-      -c $TINI_SHA1 \
-      -x
+ADD https://raw.githubusercontent.com/antoineco/curl-check-install/master/curl-check-install /usr/local/bin/
+
+RUN \
+	chmod +x /usr/local/bin/curl-check-install \
+	\
+	&& curl-check-install \
+		-u https://github.com/krallin/tini/releases/download/v${TINI_VERSION}/tini-static \
+		-n tini \
+		-c $TINI_SHA1 \
+		-x
 ```
 
 Install the [docker](https://github.com/docker/docker/) binary using a Dockerfile:
 
-````dockerfile
+```dockerfile
 FROM debian
 
 ENV DOCKER_VERSION 1.11.2
 ENV DOCKER_SHA256 8c2e0c35e3cda11706f54b2d46c2521a6e9026a7b13c7d4b8ae1f3a706fc55e1
 
-RUN curl-check-install \
-      -u https://get.docker.com/builds/Linux/x86_64/docker-${DOCKER_VERSION}.tgz \
-      -n docker.tgz \
-      -d /tmp \
-      -c $DOCKER_SHA256 \
-      -p sha256sum \
-    && tar -xzvf /tmp/docker.tgz -C /usr/local/bin/ --strip 1 \
-    && rm /tmp/docker.tgz
+ADD https://raw.githubusercontent.com/antoineco/curl-check-install/master/curl-check-install /usr/local/bin/
+
+RUN \
+	chmod +x /usr/local/bin/curl-check-install \
+	\
+	&& curl-check-install \
+		-u https://get.docker.com/builds/Linux/x86_64/docker-${DOCKER_VERSION}.tgz \
+		-n docker.tgz \
+		-d /tmp \
+		-c $DOCKER_SHA256 \
+		-p sha256sum \
+	&& tar -xzvf /tmp/docker.tgz -C /usr/local/bin/ --strip 1 \
+	&& rm /tmp/docker.tgz
 ```
