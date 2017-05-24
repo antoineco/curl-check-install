@@ -32,15 +32,18 @@ Options:
 Install the [tini](https://github.com/krallin/tini/) container init using a Dockerfile:
 
 ```dockerfile
-FROM debian
+FROM alpine
 
 ENV TINI_VERSION 0.14.0
 ENV TINI_SHA1 b2d2b6d7f570158ae5eccbad9b98b5e9f040f853
 
+ENV CCI_SHA256 1b4cdc8b96f5690f888674b32dda2225c795909959e2b90faedd15016fe391c9
 ADD https://raw.githubusercontent.com/antoineco/curl-check-install/master/curl-check-install /usr/local/bin/
 
 RUN \
-	chmod +x /usr/local/bin/curl-check-install \
+	# assert checksum of curl-check-install script
+	echo "${CCI_SHA256}  /usr/local/bin/curl-check-install" | sha256sum -c - \
+	&& chmod +x /usr/local/bin/curl-check-install \
 	\
 	&& curl-check-install \
 		-u https://github.com/krallin/tini/releases/download/v${TINI_VERSION}/tini-static \
@@ -57,10 +60,13 @@ FROM debian
 ENV DOCKER_VERSION 1.11.2
 ENV DOCKER_SHA256 8c2e0c35e3cda11706f54b2d46c2521a6e9026a7b13c7d4b8ae1f3a706fc55e1
 
+ENV CCI_SHA256 1b4cdc8b96f5690f888674b32dda2225c795909959e2b90faedd15016fe391c9
 ADD https://raw.githubusercontent.com/antoineco/curl-check-install/master/curl-check-install /usr/local/bin/
 
 RUN \
-	chmod +x /usr/local/bin/curl-check-install \
+	# assert checksum of curl-check-install script
+	echo "${CCI_SHA256}  /usr/local/bin/curl-check-install" | sha256sum -c - \
+	&& chmod +x /usr/local/bin/curl-check-install \
 	\
 	&& curl-check-install \
 		-u https://get.docker.com/builds/Linux/x86_64/docker-${DOCKER_VERSION}.tgz \
